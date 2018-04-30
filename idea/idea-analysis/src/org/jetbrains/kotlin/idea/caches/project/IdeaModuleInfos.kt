@@ -179,9 +179,8 @@ data class ModuleProductionSourceInfo internal constructor(
 }
 
 //TODO: (module refactoring) do not create ModuleTestSourceInfo when there are no test roots for module
-data class ModuleTestSourceInfo internal constructor(
-    override val module: Module
-) : ModuleSourceInfoWithExpectedBy(forProduction = false) {
+data class ModuleTestSourceInfo internal constructor(override val module: Module) :
+    ModuleSourceInfoWithExpectedBy(forProduction = false), org.jetbrains.kotlin.idea.caches.resolve.ModuleTestSourceInfo {
 
     override val name = Name.special("<test sources for module ${module.name}>")
 
