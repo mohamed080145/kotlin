@@ -19,6 +19,8 @@ package org.jetbrains.kotlin.backend.common.lower
 import org.jetbrains.kotlin.backend.common.BackendContext
 import org.jetbrains.kotlin.backend.common.DeclarationContainerLoweringPass
 import org.jetbrains.kotlin.backend.common.descriptors.synthesizedName
+import org.jetbrains.kotlin.backend.common.peek
+import org.jetbrains.kotlin.backend.common.pop
 import org.jetbrains.kotlin.descriptors.*
 import org.jetbrains.kotlin.descriptors.annotations.Annotations
 import org.jetbrains.kotlin.descriptors.impl.ClassConstructorDescriptorImpl
@@ -98,7 +100,12 @@ class LocalDeclarationsLowering(
         /**
          * @return the expression to get the value for given descriptor, or `null` if [IrGetValue] should be used.
          */
-        abstract fun irGet(startOffset: Int, endOffset: Int, descriptor: ValueDescriptor): IrExpression?
+        abstract fun irGet(
+            startOffset: Int,
+            endOffset: Int,
+            descriptor: ValueDescriptor,
+            dispatchReceiver: IrValueParameter?
+        ): IrExpression?
     }
 
     private abstract class LocalContextWithClosureAsParameters : LocalContext() {
@@ -112,7 +119,12 @@ class LocalDeclarationsLowering(
 
         val capturedValueToParameter: MutableMap<ValueDescriptor, IrValueParameterSymbol> = HashMap()
 
-        override fun irGet(startOffset: Int, endOffset: Int, descriptor: ValueDescriptor): IrExpression? {
+        override fun irGet(
+            startOffset: Int,
+            endOffset: Int,
+            descriptor: ValueDescriptor,
+            dispatchReceiver: IrValueParameter?
+        ): IrExpression? {
             val newSymbol = capturedValueToParameter[descriptor] ?: return null
 
             return IrGetValueImpl(startOffset, endOffset, newSymbol)
@@ -150,12 +162,17 @@ class LocalDeclarationsLowering(
 
         val capturedValueToField: MutableMap<ValueDescriptor, IrField> = HashMap()
 
-        override fun irGet(startOffset: Int, endOffset: Int, descriptor: ValueDescriptor): IrExpression? {
+        override fun irGet(
+            startOffset: Int,
+            endOffset: Int,
+            descriptor: ValueDescriptor,
+            dispatchReceiver: IrValueParameter?
+        ): IrExpression? {
             val field = capturedValueToField[descriptor] ?: return null
 
             return IrGetFieldImpl(
                 startOffset, endOffset, field.symbol,
-                receiver = IrGetValueImpl(startOffset, endOffset, declaration.thisReceiver!!.symbol)
+                receiver = IrGetValueImpl(startOffset, endOffset, dispatchReceiver?.symbol ?: declaration.thisReceiver!!.symbol)
             )
         }
 
@@ -214,6 +231,8 @@ class LocalDeclarationsLowering(
 
         private inner class FunctionBodiesRewriter(val localContext: LocalContext?) : IrElementTransformerVoid() {
 
+            private val functions = mutableListOf<IrFunction>()
+
             override fun visitClass(declaration: IrClass): IrStatement {
                 return if (declaration.descriptor in localClasses) {
                     // Replace local class definition with an empty composite.
@@ -228,7 +247,8 @@ class LocalDeclarationsLowering(
                     // Replace local function definition with an empty composite.
                     IrCompositeImpl(declaration.startOffset, declaration.endOffset, context.builtIns.unitType)
                 } else {
-                    super.visitFunction(declaration)
+                    functions.add(declaration)
+                    super.visitFunction(declaration).also { assert(functions.pop() == declaration) }
                 }
             }
 
@@ -253,9 +273,10 @@ class LocalDeclarationsLowering(
             override fun visitGetValue(expression: IrGetValue): IrExpression {
                 val descriptor = expression.descriptor
 
-                localContext?.irGet(expression.startOffset, expression.endOffset, descriptor)?.let {
-                    return it
-                }
+                localContext?.irGet(expression.startOffset, expression.endOffset, descriptor, functions.peek()?.dispatchReceiverParameter)
+                    ?.let {
+                        return it
+                    }
 
                 oldParameterToNew[descriptor]?.let {
                     return IrGetValueImpl(expression.startOffset, expression.endOffset, it)
@@ -303,7 +324,8 @@ class LocalDeclarationsLowering(
                         val capturedValueDescriptor = capturedValueSymbol.descriptor
                         localContext?.irGet(
                             oldExpression.startOffset, oldExpression.endOffset,
-                            capturedValueDescriptor
+                            capturedValueDescriptor,
+                            functions.peek()?.dispatchReceiverParameter
                         ) ?:
                         // Captured value is directly available for the caller.
                         IrGetValueImpl(
@@ -381,7 +403,8 @@ class LocalDeclarationsLowering(
                 for (constructorContext in constructorsCallingSuper) {
                     val blockBody = constructorContext.declaration.body as? IrBlockBody
                             ?: throw AssertionError("Unexpected constructor body: ${constructorContext.declaration.body}")
-                    val capturedValueExpression = constructorContext.irGet(startOffset, endOffset, capturedValue)!!
+                    val capturedValueExpression =
+                        constructorContext.irGet(startOffset, endOffset, capturedValue, irClass.thisReceiver)!!
                     blockBody.statements.add(
                         0,
                         IrSetFieldImpl(
