@@ -192,40 +192,32 @@ class FileScopeFactory(
             var scope: ImportingScope
 
             val debugName = "LazyFileScope for file " + file.name
-            scope = LazyImportScope(
-                existingImports, defaultLowPriorityImportResolver, LazyImportScope.FilteringKind.INVISIBLE_CLASSES,
-                "Default low priority all under imports in $debugName (invisible classes only)"
-            )
 
             scope = LazyImportScope(
-                scope, defaultAllUnderImportResolver, LazyImportScope.FilteringKind.INVISIBLE_CLASSES,
+                existingImports, defaultAllUnderImportResolver, defaultLowPriorityImportResolver,
+                LazyImportScope.FilteringKind.INVISIBLE_CLASSES,
                 "Default all under imports in $debugName (invisible classes only)"
             )
 
             scope = LazyImportScope(
-                scope, allUnderImportResolver, LazyImportScope.FilteringKind.INVISIBLE_CLASSES,
+                scope, allUnderImportResolver, null, LazyImportScope.FilteringKind.INVISIBLE_CLASSES,
                 "All under imports in $debugName (invisible classes only)"
             )
 
             scope = currentPackageScope(packageView, aliasImportNames, dummyContainerDescriptor, FilteringKind.INVISIBLE_CLASSES, scope)
 
             scope = LazyImportScope(
-                scope, defaultLowPriorityImportResolver, LazyImportScope.FilteringKind.VISIBLE_CLASSES,
-                "Default low priority all under imports in $debugName (visible classes)"
-            )
-
-            scope = LazyImportScope(
-                scope, defaultAllUnderImportResolver, LazyImportScope.FilteringKind.VISIBLE_CLASSES,
+                scope, defaultAllUnderImportResolver, defaultLowPriorityImportResolver, LazyImportScope.FilteringKind.VISIBLE_CLASSES,
                 "Default all under imports in $debugName (visible classes)"
             )
 
             scope = LazyImportScope(
-                scope, allUnderImportResolver, LazyImportScope.FilteringKind.VISIBLE_CLASSES,
+                scope, allUnderImportResolver, null, LazyImportScope.FilteringKind.VISIBLE_CLASSES,
                 "All under imports in $debugName (visible classes)"
             )
 
             scope = LazyImportScope(
-                scope, defaultExplicitImportResolver, LazyImportScope.FilteringKind.ALL,
+                scope, defaultExplicitImportResolver, null, LazyImportScope.FilteringKind.ALL,
                 "Default explicit imports in $debugName"
             )
 
@@ -233,7 +225,7 @@ class FileScopeFactory(
 
             scope = currentPackageScope(packageView, aliasImportNames, dummyContainerDescriptor, FilteringKind.VISIBLE_CLASSES, scope)
 
-            return LazyImportScope(scope, explicitImportResolver, LazyImportScope.FilteringKind.ALL, "Explicit imports in $debugName")
+            return LazyImportScope(scope, explicitImportResolver, null, LazyImportScope.FilteringKind.ALL, "Explicit imports in $debugName")
         }
 
     }
