@@ -17,7 +17,6 @@
 package org.jetbrains.kotlin.jps.build
 
 import org.jetbrains.jps.builders.JpsBuildTestCase
-import org.jetbrains.kotlin.jps.platforms.clearKotlinModuleBuildTargetDataBindings
 
 abstract class BaseKotlinJpsBuildTestCase : JpsBuildTestCase() {
     @Throws(Exception::class)
@@ -34,6 +33,5 @@ abstract class BaseKotlinJpsBuildTestCase : JpsBuildTestCase() {
         super.tearDown()
         myModel = null
         myBuildParams.clear()
-        clearKotlinModuleBuildTargetDataBindings()
     }
 }
